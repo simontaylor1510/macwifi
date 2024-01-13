@@ -11,6 +11,29 @@ if "darwin" not in sys.platform:
     raise Exception("macwifi only works on macOS.")
 
 
+def get_wifi_interface() -> Optional[str]:
+    """Determine which interface is assigned to Wi-Fi"""
+    process = subprocess.Popen(
+        ["networksetup", "-listallhardwareports"], stdout=subprocess.PIPE
+    )
+    out, err = process.communicate()
+    process.wait()
+    output = None
+    next_line = False
+    for line in out.decode("utf-8").split("\n"):
+        if ": " in line:
+            key, value = line.split(": ")
+            key = key.strip()
+            value = value.strip()
+            if value.lower() == "wi-fi":
+                next_line = True
+            elif next_line:
+                output = value
+                next_line = False
+
+    return output
+
+
 def get_wifi_info() -> str:
     """Get the information about the connected WiFi."""
     process = subprocess.Popen([PATH_OF_AIRPORT, "-I"], stdout=subprocess.PIPE)
@@ -51,7 +74,7 @@ def get_rssi() -> str:
     return output["agrCtlRSSI"]
 
 
-def connect(ssid: str, password: str) -> Optional[bool]:
+def connect(ssid: str, password: str, interface: str = "en0") -> Optional[bool]:
     """Connect to a WiFi network.
 
     Args:
@@ -60,7 +83,7 @@ def connect(ssid: str, password: str) -> Optional[bool]:
     """
     print(f"Connecting to {ssid}...")
     process = subprocess.Popen(
-        ["networksetup", "-setairportnetwork", "en0", ssid, password],
+        ["networksetup", "-setairportnetwork", interface, ssid, password],
         stdout=subprocess.PIPE,
     )
     out, err = process.communicate()
@@ -70,6 +93,7 @@ def connect(ssid: str, password: str) -> Optional[bool]:
         return True
     elif "Could not find network" or "Failed to join network" in result:
         raise Exception("SSID or password may be incorrect.")
+    return False
 
 
 def turn_on() -> Optional[bool]:
